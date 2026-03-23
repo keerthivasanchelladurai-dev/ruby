@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Happy Birthday - Cosmic Cinematic</title>
+
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Montserrat:wght@300;600&display=swap"
+        rel="stylesheet">
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Montserrat', sans-serif;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            outline: none;
+        }
+
+        /* --- SPLASH SCREEN --- */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 2.0s ease-out;
+            pointer-events: none;
+        }
+
+        .loader-text {
+            color: #fff;
+            font-family: 'Montserrat', sans-serif;
+            letter-spacing: 5px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.3;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.3;
+            }
+        }
+
+        /* --- UI LAYER --- */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5vh 0;
+            box-sizing: border-box;
+        }
+
+        .handwritten-text {
+            font-family: 'Great Vibes', cursive;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+            opacity: 0;
+            transition: opacity 1.5s ease-out;
+            text-align: center;
+            width: 90%;
+        }
+
+        #hb-text {
+            font-size: clamp(2.5rem, 8vw, 4rem);
+            background: linear-gradient(90deg, #fff 0%, #ddd 100%);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #name-text {
+            font-size: clamp(3rem, 10vw, 5rem);
+            color: #ffddaa;
+        }
+
+        .visible {
+            opacity: 1 !important;
+        }
+
+        .hidden {
+            opacity: 0 !important;
+            transition: opacity 1s ease;
+        }
+
+        /* MESSAGE MODAL */
+        #message-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: auto;
+            opacity: 0;
+            transition: opacity 1s ease;
+            z-index: 50;
+            display: none;
+            width: 85%;
+            max-width: 500px;
+        }
+
+        .glass-panel {
+            background: rgba(25, 25, 40, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 30px;
+            border-radius: 20px;
+            color: #eee;
+        }
+
+        .glass-panel h2 {
+            font-size: clamp(1.2rem, 4vw, 1.8rem);
+            margin-bottom: 20px;
+            line-height: 1.4;
+        }
+
+        .magic-btn {
+            background: linear-gradient(135deg, #6677ff, #ff88aa);
+            border: none;
+            padding: 15px 35px;
+            color: white;
+            border-radius: 40px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 600;
+            text-transform: uppercase;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s;
+        }
+
+        .magic-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* FINAL CAPTION */
+        #final-caption {
+            position: absolute;
+            top: 75%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-family: 'Great Vibes', cursive;
+            font-size: clamp(2rem, 6vw, 2.5rem);
+            text-shadow: 0 0 10px #fff, 0 0 20px #ff00de;
+            opacity: 0;
+            transition: opacity 2s ease;
+            z-index: 5;
+            pointer-events: none;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* --- PORTAL BUTTON CONTAINER --- */
+        #portal-container {
+            position: absolute;
+            bottom: 5%;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 60;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 2s ease;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .portal-btn {
+            display: inline-block;
+            text-decoration: none;
+            font-family: 'Montserrat', sans-serif;
+            color: #fff;
+            padding: 12px 30px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 0.8rem;
+            backdrop-filter: blur(5px);
+            transition: all 0.4s ease;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.1);
+            white-space: nowrap;
+        }
+
+        .portal-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* --- NEW PUZZLE SECTION --- */
+        .puzzle-section {
+            margin-top: 25px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .puzzle-text {
+            color: #fff;
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            opacity: 0.8;
+            letter-spacing: 1px;
+            margin-top: 0;
+        }
+
+        .yes-btn {
+            padding: 8px 30px;
+            font-size: 0.75rem;
+            background: rgba(255, 100, 150, 0.15);
+            border-color: rgba(255, 100, 150, 0.4);
+        }
+
+        .yes-btn:hover {
+            background: rgba(255, 100, 150, 0.4);
+        }
+
+        /* Landscape Mobile Adjustments */
+        @media (orientation: landscape) and (max-height: 500px) {
+            #ui-layer {
+                padding: 2vh 0;
+            }
+
+            #hb-text {
+                font-size: 2rem;
+            }
+
+            #name-text {
+                font-size: 2.5rem;
+            }
+
+            .glass-panel {
+                padding: 15px 20px;
+            }
+
+            .glass-panel h2 {
+                font-size: 1.1rem;
+                margin-bottom: 10px;
+            }
+
+            .magic-btn {
+                padding: 10px 25px;
+                font-size: 0.8rem;
+            }
+
+            #final-caption {
+                top: 65%;
+                font-size: 1.8rem;
+            }
+
+            #portal-container {
+                bottom: 2%;
+            }
+
+            .puzzle-section {
+                margin-top: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="splash-screen">
+        <div class="loader-text">Loading the Universe...</div>
+    </div>
+
+    <div id="ui-layer">
+        <div id="hb-text" class="handwritten-text">Happy Birthday</div>
+        <div id="name-text" class="handwritten-text">Ruby...</div>
+    </div>
+
+    <div id="message-modal">
+        <div class="glass-panel">
+            <h2>The Moon is Jealous of You,<br>Do U wanna Moon back?</h2>
+            <button class="magic-btn" onclick="triggerSequence()">Bring it Back</button>
+        </div>
+    </div>
+
+    <div id="final-caption">you are the moon</div>
+
+    <div id="portal-container">
+        <!-- <a href="final.html" class="portal-btn">Open The Final Gift ➜</a> -->
+
+        <!-- New Puzzle Section -->
+        <div class="puzzle-section">
+            <p class="puzzle-text">you really intrested to</p>
+            <a href="puzzle.html" class="portal-btn yes-btn">yes</a>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        const CONFIG = {
+            transformTime: 12.0,
+            moonRadius: 10,
+            particleCount: 16000,
+            cameraZ: 75,
+            defaultTexture: 'moon.webp',
+            defaultPic: 'pic1.jpeg',
+            fallbackPic: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&q=80&w=1000',
+            nameToRender: "Ruby...",
+            finalCircleRadius: 13
+        };
+
+        const STATE = {
+            ORBIT: 0,
+            EXPLODING: 1,
+            WAITING: 2,
+            REASSEMBLING_NAME: 3,
+            HOLDING_NAME: 4,
+            DISPERSING: 5,
+            REASSEMBLING_PHOTO: 6
+        };
+
+        let currentState = STATE.ORBIT;
+        let stateTimer = 0;
+        let scene, camera, renderer, clock, controls;
+        let moonMesh, picMesh, particleSystem;
+        let particleAttributes = { positions: null, velocities: null, targetName: null, targetPhoto: null, currentTargets: null };
+        let isDragging = false;
+        let hbTriggered = false, nameTriggered = false;
+
+        window.onload = init;
+
+        function init() {
+            setTimeout(() => {
+                const splash = document.getElementById('splash-screen');
+                splash.style.opacity = 0;
+                setTimeout(() => splash.style.display = 'none', 1500);
+            }, 2000);
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            scene.fog = new THREE.FogExp2(0x000000, 0.0001);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 10000);
+            camera.position.set(0, 0, CONFIG.cameraZ);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.enablePan = false;
+            controls.enableZoom = false;
+            controls.minAzimuthAngle = -Math.PI / 2;
+            controls.maxAzimuthAngle = Math.PI / 2;
+            controls.minPolarAngle = Math.PI / 2 - 0.4;
+            controls.maxPolarAngle = Math.PI / 2 + 0.4;
+
+            controls.addEventListener('start', () => { isDragging = true; });
+            controls.addEventListener('end', () => { isDragging = false; });
+
+            clock = new THREE.Clock();
+
+            // Minimal lighting
+            scene.add(new THREE.AmbientLight(0xffffff, 0.2));
+
+            createDeepStarfield();
+            createMoon(CONFIG.defaultTexture);
+
+            window.addEventListener('resize', onResize);
+            // Initial call to set correct scale
+            onResize();
+
+            animate();
+        }
+
+        function getCircleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.3, 'rgba(200, 220, 255, 0.6)');
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 32, 32);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function generateTextTargets() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, 512, 256);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 90px "Montserrat", sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(CONFIG.nameToRender, 256, 128);
+
+            const data = ctx.getImageData(0, 0, 512, 256).data;
+            const validPoints = [];
+            for (let y = 0; y < 256; y += 3) {
+                for (let x = 0; x < 512; x += 3) {
+                    if (data[(y * 512 + x) * 4] > 128) {
+                        validPoints.push({ x: (x - 256) * 0.1, y: -(y - 128) * 0.1 });
+                    }
+                }
+            }
+            return validPoints;
+        }
+
+        function createDeepStarfield() {
+            const starTexture = getCircleTexture();
+            const layers = [
+                { count: 8000, size: 0.6, color: 0x556677, dist: 1500 },
+                { count: 3000, size: 1.2, color: 0xffffff, dist: 800 },
+                { count: 300, size: 2.2, color: 0xaaccff, dist: 300 }
+            ];
+
+            layers.forEach(layer => {
+                const geo = new THREE.BufferGeometry();
+                const pos = [];
+                for (let i = 0; i < layer.count; i++) {
+                    const r = (layer.dist * 0.5) + Math.random() * layer.dist;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos(2 * Math.random() - 1);
+                    pos.push(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
+                }
+                geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+                const mat = new THREE.PointsMaterial({ color: layer.color, size: layer.size, map: starTexture, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending });
+                scene.add(new THREE.Points(geo, mat));
+            });
+        }
+
+        function createMoon(url) {
+            const loader = new THREE.TextureLoader();
+            loader.load(url, (tex) => {
+                const geo = new THREE.SphereGeometry(CONFIG.moonRadius, 128, 128);
+                const mat = new THREE.MeshBasicMaterial({
+                    map: tex,
+                    transparent: true
+                });
+                moonMesh = new THREE.Mesh(geo, mat);
+                moonMesh.rotation.y = -Math.PI / 1.7;
+                scene.add(moonMesh);
+            });
+        }
+
+        function createPicCard(url) {
+            const loader = new THREE.TextureLoader();
+            loader.crossOrigin = 'Anonymous';
+            loader.load(url, (tex) => {
+                const geo = new THREE.CircleGeometry(CONFIG.finalCircleRadius, 128);
+                const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, side: THREE.DoubleSide });
+                picMesh = new THREE.Mesh(geo, mat);
+                scene.add(picMesh);
+            }, undefined, () => {
+                loader.load(CONFIG.fallbackPic, (tex) => {
+                    const geo = new THREE.CircleGeometry(CONFIG.finalCircleRadius, 128);
+                    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0, side: THREE.DoubleSide });
+                    picMesh = new THREE.Mesh(geo, mat);
+                    scene.add(picMesh);
+                });
+            });
+        }
+
+        function triggerExplosion() {
+            currentState = STATE.EXPLODING;
+            if (moonMesh) moonMesh.visible = false;
+            document.getElementById('hb-text').classList.add('hidden');
+            document.getElementById('name-text').classList.add('hidden');
+            createParticleSystem();
+            setTimeout(() => {
+                currentState = STATE.WAITING;
+                const modal = document.getElementById('message-modal');
+                modal.style.display = 'block';
+                void modal.offsetWidth;
+                modal.style.opacity = 1;
+            }, 3000);
+        }
+
+        function createParticleSystem() {
+            const count = CONFIG.particleCount;
+            const geo = new THREE.BufferGeometry();
+            const posArray = new Float32Array(count * 3);
+            const velArray = [];
+            const cols = [];
+            const namePoints = generateTextTargets();
+            const targetNameArr = new Float32Array(count * 3);
+            const targetPhotoArr = new Float32Array(count * 3);
+
+            for (let i = 0; i < count; i++) {
+                const r = CONFIG.moonRadius;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                const x = r * Math.sin(phi) * Math.cos(theta);
+                const y = r * Math.sin(phi) * Math.sin(theta);
+                const z = r * Math.cos(phi);
+                posArray[i * 3] = x; posArray[i * 3 + 1] = y; posArray[i * 3 + 2] = z;
+
+                const speed = 0.15 + Math.random() * 0.45;
+                const v = new THREE.Vector3(x, y, z).normalize().multiplyScalar(speed);
+                velArray.push(v.x, v.y, v.z);
+
+                const c = new THREE.Color().setHSL(0.6 + Math.random() * 0.1, 0.2, 0.8 + Math.random() * 0.2);
+                cols.push(c.r, c.g, c.b);
+
+                const pt = namePoints[i % namePoints.length];
+                targetNameArr[i * 3] = pt.x + (Math.random() - 0.5) * 0.2;
+                targetNameArr[i * 3 + 1] = pt.y + (Math.random() - 0.5) * 0.2;
+                targetNameArr[i * 3 + 2] = (Math.random() - 0.5) * 1.5;
+
+                if (i < count * 0.4) {
+                    const rCirc = CONFIG.finalCircleRadius * Math.sqrt(Math.random());
+                    const tCirc = Math.random() * 2 * Math.PI;
+                    targetPhotoArr[i * 3] = rCirc * Math.cos(tCirc);
+                    targetPhotoArr[i * 3 + 1] = rCirc * Math.sin(tCirc);
+                    targetPhotoArr[i * 3 + 2] = (Math.random() - 0.5) * 0.5;
+                } else {
+                    const tr = 50 + Math.random() * 30;
+                    const tt = Math.random() * Math.PI * 2;
+                    const tp = Math.acos(2 * Math.random() - 1);
+                    targetPhotoArr[i * 3] = tr * Math.sin(tp) * Math.cos(tt);
+                    targetPhotoArr[i * 3 + 1] = tr * Math.sin(tp) * Math.sin(tt);
+                    targetPhotoArr[i * 3 + 2] = tr * Math.cos(tp);
+                }
+            }
+
+            geo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.65, vertexColors: true, transparent: true, map: getCircleTexture(), blending: THREE.AdditiveBlending, depthWrite: false });
+            particleSystem = new THREE.Points(geo, mat);
+            scene.add(particleSystem);
+            particleAttributes.positions = posArray;
+            particleAttributes.velocities = velArray;
+            particleAttributes.targetName = targetNameArr;
+            particleAttributes.targetPhoto = targetPhotoArr;
+        }
+
+        window.triggerSequence = function () {
+            const modal = document.getElementById('message-modal');
+            modal.style.opacity = 0;
+            setTimeout(() => modal.style.display = 'none', 1000);
+            currentState = STATE.REASSEMBLING_NAME;
+            particleAttributes.currentTargets = particleAttributes.targetName;
+        };
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+            controls.update();
+
+            if (!isDragging && currentState !== STATE.REASSEMBLING_PHOTO) {
+                camera.position.z += (CONFIG.cameraZ - camera.position.z) * 0.05;
+                camera.lookAt(0, 0, 0);
+            }
+
+            if (currentState === STATE.ORBIT) {
+                if (time > 3.0 && !hbTriggered) { document.getElementById('hb-text').classList.add('visible'); hbTriggered = true; }
+                if (time > 5.0 && !nameTriggered) { document.getElementById('name-text').classList.add('visible'); nameTriggered = true; }
+                if (time >= CONFIG.transformTime) triggerExplosion();
+                if (moonMesh) moonMesh.rotation.y += 0.001;
+            }
+            else if (currentState === STATE.EXPLODING || currentState === STATE.WAITING || currentState === STATE.DISPERSING) {
+                if (particleSystem) {
+                    const positions = particleSystem.geometry.attributes.position.array;
+                    const vels = particleAttributes.velocities;
+                    for (let i = 0; i < CONFIG.particleCount; i++) {
+                        const i3 = i * 3;
+                        positions[i3] += vels[i3]; positions[i3 + 1] += vels[i3 + 1]; positions[i3 + 2] += vels[i3 + 2];
+                        vels[i3] *= 0.985; vels[i3 + 1] *= 0.985; vels[i3 + 2] *= 0.985;
+                    }
+                    particleSystem.geometry.attributes.position.needsUpdate = true;
+                }
+                if (currentState === STATE.DISPERSING && (clock.getElapsedTime() - stateTimer > 2.0)) {
+                    currentState = STATE.REASSEMBLING_PHOTO;
+                    particleAttributes.currentTargets = particleAttributes.targetPhoto;
+                    createPicCard(CONFIG.defaultPic);
+                }
+            }
+            else if (currentState === STATE.REASSEMBLING_NAME) {
+                performAssembly(0.06);
+                if (!stateTimer) stateTimer = clock.getElapsedTime();
+                if (clock.getElapsedTime() - stateTimer > 4.0) { currentState = STATE.HOLDING_NAME; stateTimer = clock.getElapsedTime(); }
+            }
+            else if (currentState === STATE.HOLDING_NAME) {
+                performAssembly(0.015);
+                if (clock.getElapsedTime() - stateTimer > 3.0) {
+                    currentState = STATE.DISPERSING; stateTimer = clock.getElapsedTime();
+                    const vels = particleAttributes.velocities;
+                    for (let i = 0; i < CONFIG.particleCount; i++) {
+                        const i3 = i * 3;
+                        const v = new THREE.Vector3(particleAttributes.positions[i3], particleAttributes.positions[i3 + 1], particleAttributes.positions[i3 + 2]).normalize().multiplyScalar(0.25 + Math.random() * 0.35);
+                        vels[i3] = v.x; vels[i3 + 1] = v.y; vels[i3 + 2] = v.z;
+                    }
+                }
+            }
+            else if (currentState === STATE.REASSEMBLING_PHOTO) {
+                performAssembly(0.045);
+                if (picMesh) {
+                    picMesh.quaternion.copy(camera.quaternion);
+                    if (picMesh.material.opacity < 1) picMesh.material.opacity += 0.006;
+                    if (picMesh.material.opacity > 0.6) document.getElementById('final-caption').style.opacity = 1;
+                    if (picMesh.material.opacity > 0.9) {
+                        const p = document.getElementById('portal-container');
+                        p.style.opacity = 1; p.style.pointerEvents = 'auto';
+                    }
+                }
+            }
+            renderer.render(scene, camera);
+        }
+
+        function performAssembly(speed) {
+            if (!particleSystem) return;
+            const positions = particleSystem.geometry.attributes.position.array;
+            const targets = particleAttributes.currentTargets;
+            for (let i = 0; i < CONFIG.particleCount; i++) {
+                const i3 = i * 3;
+                positions[i3] += (targets[i3] - positions[i3]) * speed;
+                positions[i3 + 1] += (targets[i3 + 1] - positions[i3 + 1]) * speed;
+                positions[i3 + 2] += (targets[i3 + 2] - positions[i3 + 2]) * speed;
+            }
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+        }
+
+        function onResize() {
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            const aspect = width / height;
+
+            camera.aspect = aspect;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+
+            // Responsive camera distance: zoom out more for portrait, zoom in for landscape
+            if (aspect < 1) {
+                // Portrait
+                CONFIG.cameraZ = 90;
+            } else {
+                // Landscape
+                CONFIG.cameraZ = aspect > 2 ? 60 : 75;
+            }
+        }
+    </script>
+</body>
+
+</html>

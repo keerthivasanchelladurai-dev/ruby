@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Realistic 3D Cake</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Prevents scroll bounce on mobile */
+            background-color: #050505;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            display: block;
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 1;
+        }
+
+        /* --- UI Controls --- */
+        .mic-popup {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            width: 90%; /* Mobile Responsive Width */
+            max-width: 380px; 
+            padding: 30px 25px;
+            box-sizing: border-box;
+            border-radius: 20px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+            text-align: center;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            backdrop-filter: blur(10px);
+            transition: all 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+        
+        .mic-popup h2 { margin: 0; color: #ff4d6d; font-size: 26px; font-weight: 800; transition: opacity 0.3s; }
+        .mic-popup p { margin: 0; color: #555; font-size: 15px; font-weight: 500; }
+
+        /* New class to move it out of the way safely on ALL screens */
+        .mic-popup.listening {
+            top: auto;
+            bottom: 30px; /* Safely above the bottom edge */
+            transform: translateX(-50%) scale(0.9);
+            padding: 15px 25px;
+        }
+        .mic-popup.listening h2 {
+            display: none; /* Hide the big title to save space */
+        }
+
+        .btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background-color: #ff4d6d;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 77, 109, 0.3);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover { background-color: #e03855; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 77, 109, 0.4); }
+        .btn:active { transform: translateY(1px); }
+        
+        .meter-bg {
+            width: 100%; height: 12px; background: #ddd; border-radius: 6px; margin-top: 5px; display: none; overflow: hidden;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+        }
+        .meter-fill {
+            height: 100%; width: 0%; background: #4CAF50; transition: width 0.05s, background-color 0.2s;
+        }
+
+        .hidden { display: none !important; }
+        
+        /* --- Full Screen Glitch Overlay --- */
+        #glitch-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 9999;
+            pointer-events: none;
+            display: none;
+        }
+
+        /* --- Desktop Adjustments --- */
+        @media (min-width: 768px) {
+        }
+
+        /* --- Mobile Landscape Adjustments --- */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .mic-popup.listening { bottom: 10px; transform: translateX(-50%) scale(0.75); padding: 10px 20px; }
+        }
+    </style>
+    <!-- Load Three.js and OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <canvas id="glitch-canvas"></canvas>
+
+    <!-- UI for Phase 1: Cake -->
+    <div class="mic-popup" id="mic-popup">
+        <h2>🎂 Make a Wish!</h2>
+        <p id="mic-status">Enable your microphone to blow out the candles.</p>
+        <button id="start-btn" class="btn">🎤 Enable Mic</button>
+        <div class="meter-bg" id="meter-container">
+            <div class="meter-fill" id="meter"></div>
+        </div>
+    </div>
+
+    <script>
+        // GLOBAL APP PHASE
+        let currentPhase = 'cake'; // 'cake' or 'final'
+
+        // Shared Renderer
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        renderer.localClippingEnabled = true; 
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // ==========================================
+        //         SCENE 1: CAKE SETUP
+        // ==========================================
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color('#050505'); 
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        const defaultCameraPos = new THREE.Vector3(0, 9, 24);
+        const defaultTarget = new THREE.Vector3(0, 0, 0);
+        camera.position.copy(defaultCameraPos); 
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.05; 
+        controls.minDistance = 10; 
+        controls.maxDistance = 50;
+        controls.minAzimuthAngle = -Math.PI / 2;
+        controls.maxAzimuthAngle = Math.PI / 2;
+
+        let isUserInteracting = false;
+        controls.addEventListener('start', () => { isUserInteracting = true; });
+        controls.addEventListener('end', () => { isUserInteracting = false; });
+
+        function adjustCameraOffset() {
+            const isLandscapeMobile = window.innerHeight <= 500 && window.innerWidth > window.innerHeight;
+            const isPortraitMobile = window.innerWidth <= 768 && window.innerHeight > window.innerWidth;
+            
+            let offsetX = 0; // Centered by default for mobile portrait
+            let offsetY = window.innerHeight * -0.05; 
+            
+            if (isLandscapeMobile) offsetX = window.innerWidth * -0.25;
+            else if (!isPortraitMobile) offsetX = window.innerWidth * -0.18; // Shift left for desktop
+
+            camera.setViewOffset(window.innerWidth, window.innerHeight, offsetX, offsetY, window.innerWidth, window.innerHeight);
+            camera.updateProjectionMatrix();
+        }
+        adjustCameraOffset();
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x1a1a3a, 0.8); 
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0x405070, 0.4); 
+        dirLight.position.set(10, 20, 10);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+        const spotLight = new THREE.SpotLight(0xfff5e6, 2.0); 
+        spotLight.position.set(0, 25, 8);
+        spotLight.angle = Math.PI / 5.5;
+        spotLight.penumbra = 0.5;
+        spotLight.decay = 1.5;
+        spotLight.distance = 50;
+        spotLight.castShadow = true;
+        spotLight.shadow.mapSize.width = 1024;
+        spotLight.shadow.mapSize.height = 1024;
+        scene.add(spotLight);
+        scene.add(spotLight.target);
+        spotLight.target.position.set(0, 0, 0);
+
+        // Textures & Materials
+        function createStripeTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#ff4d6d'; 
+            ctx.translate(128, 128);
+            ctx.rotate(Math.PI / 4); 
+            for(let i = -200; i < 200; i += 40) ctx.fillRect(i, -200, 20, 400);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(2, 1);
+            return texture;
+        }
+
+        function createRealisticSmokeTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createRadialGradient(128, 128, 10, 128, 128, 120);
+            grad.addColorStop(0, 'rgba(255,255,255,1)');
+            grad.addColorStop(0.2, 'rgba(255,255,255,0.8)');
+            grad.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+            grad.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, 256, 256);
+            return new THREE.CanvasTexture(canvas);
+        }
+        const smokeTex = createRealisticSmokeTexture();
+
+        const matDarkChoc = new THREE.MeshStandardMaterial({ color: 0x4a2a18, roughness: 0.95 });
+        const matLightChoc = new THREE.MeshStandardMaterial({ color: 0x8b5a3c, roughness: 0.9 });
+        const matPurpleIcing = new THREE.MeshStandardMaterial({ color: 0x9b59b6, roughness: 0.3, metalness: 0.1 }); 
+        const matWhiteDollop = new THREE.MeshStandardMaterial({ color: 0xffe6ea, roughness: 0.5 });
+        const matCandle = new THREE.MeshStandardMaterial({ map: createStripeTexture(), roughness: 0.7 });
+        const matFlame = new THREE.MeshBasicMaterial({ color: 0xffdd44, transparent: true, opacity: 0.9 });
+        const matStrawberry = new THREE.MeshStandardMaterial({ color: 0xd32f2f, roughness: 0.3, metalness: 0.1 });
+        const matLeaves = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 0.7 });
+        const matBlueberry = new THREE.MeshStandardMaterial({ color: 0x283593, roughness: 0.2, metalness: 0.2 });
+
+        const cakeGroup = new THREE.Group();
+
+        // Build Table
+        const tableGroup = new THREE.Group();
+        function createTableClothTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#2196F3'; ctx.fillRect(0, 0, 512, 512);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            for(let i=0; i<512; i+=64) { ctx.fillRect(i, 0, 32, 512); ctx.fillRect(0, i, 512, 32); }
+            ctx.fillStyle = 'white';
+            for(let x=16; x<512; x+=64) { for(let y=16; y<512; y+=64) { ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); } }
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(5, 5); 
+            return texture;
+        }
+        
+        const matTableCloth = new THREE.MeshStandardMaterial({ map: createTableClothTexture(), roughness: 0.9 });
+        const tableTop = new THREE.Mesh(new THREE.CylinderGeometry(13, 13, 1.2, 64), matTableCloth);
+        tableTop.position.y = -0.6; tableTop.receiveShadow = true; tableTop.castShadow = true;
+        tableGroup.add(tableTop);
+
+        const matWood = new THREE.MeshStandardMaterial({ color: 0x5c3a21, roughness: 0.9, metalness: 0.05 });
+        [[-8,-10.5,-8], [8,-10.5,-8], [-8,-10.5,8], [8,-10.5,8]].forEach(pos => {
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.4, 20, 16), matWood);
+            leg.position.set(pos[0], pos[1], pos[2]); leg.castShadow = true; leg.receiveShadow = true; tableGroup.add(leg);
+        });
+        cakeGroup.add(tableGroup);
+
+        function createTier(radius, height, yOffset, isTopTier = false) {
+            const tierGroup = new THREE.Group();
+            const segH = height / 3;
+
+            const meshDark = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, segH, 64), matDarkChoc);
+            meshDark.position.y = segH / 2; meshDark.castShadow = true; meshDark.receiveShadow = true; tierGroup.add(meshDark);
+
+            const meshLight = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, segH, 64), matLightChoc);
+            meshLight.position.y = segH * 1.5; meshLight.castShadow = true; meshLight.receiveShadow = true; tierGroup.add(meshLight);
+
+            const meshPink = new THREE.Mesh(new THREE.CylinderGeometry(radius+0.05, radius+0.05, segH, 64), matPurpleIcing);
+            meshPink.position.y = segH * 2.5; meshPink.castShadow = true; meshPink.receiveShadow = true; tierGroup.add(meshPink);
+
+            const edge = new THREE.Mesh(new THREE.TorusGeometry(radius + 0.05, 0.3, 16, 64), matPurpleIcing);
+            edge.rotation.x = Math.PI / 2; edge.position.y = segH * 3; edge.castShadow = true; tierGroup.add(edge);
+
+            for(let i=0; i<Math.floor(radius*3.5); i++) {
+                const angle = (i / Math.floor(radius*3.5)) * Math.PI * 2;
+                const len = 0.5 + Math.random() * 2.0;
+                const dripGeo = new THREE.SphereGeometry(0.3, 16, 16); dripGeo.scale(1, len, 1); 
+                const drip = new THREE.Mesh(dripGeo, matPurpleIcing);
+                drip.position.set(Math.cos(angle) * (radius+0.1), segH*3 - len/1.5, Math.sin(angle) * (radius+0.1));
+                drip.rotation.x = Math.cos(angle) * 0.1; drip.rotation.z = Math.sin(angle) * 0.1; drip.castShadow = true; tierGroup.add(drip);
+            }
+
+            for(let i=0; i<Math.floor(radius*1.5); i++) {
+                const angle = (i / Math.floor(radius*1.5)) * Math.PI * 2 + (Math.PI / Math.floor(radius*1.5));
+                const dGeo = new THREE.SphereGeometry(0.4, 16, 16); dGeo.scale(1, 0.6, 1);
+                const dollop = new THREE.Mesh(dGeo, matWhiteDollop);
+                const peak = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.6, 16), matWhiteDollop);
+                peak.position.y = 0.3; peak.rotation.x = 0.1; dollop.add(peak);
+                dollop.position.set(Math.cos(angle) * (radius-0.5), segH*3 + 0.2, Math.sin(angle) * (radius-0.5));
+                dollop.castShadow = true; tierGroup.add(dollop);
+            }
+
+            if (isTopTier) {
+                const topY = segH * 3;
+                const sColors = [0xffffff, 0xffeb3b, 0x03a9f4, 0x4caf50, 0xff9800];
+                const sGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.2, 5);
+                for (let i = 0; i < 80; i++) {
+                    const sMat = new THREE.MeshStandardMaterial({ color: sColors[Math.floor(Math.random()*sColors.length)], roughness: 0.4 });
+                    const sprinkle = new THREE.Mesh(sGeo, sMat);
+                    const rS = Math.random() * (radius - 0.5); const aS = Math.random() * Math.PI * 2;
+                    sprinkle.position.set(rS * Math.cos(aS), topY + 0.05, rS * Math.sin(aS));
+                    sprinkle.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+                    sprinkle.castShadow = true; tierGroup.add(sprinkle);
+                }
+
+                const strawGeo = new THREE.SphereGeometry(0.35, 16, 16); strawGeo.scale(1, 1.4, 1); 
+                const leafGeo = new THREE.ConeGeometry(0.12, 0.3, 3);
+                for(let i=0; i<6; i++) {
+                    const angle = (i / 6) * Math.PI * 2 + (Math.PI / 6); 
+                    const strawGroup = new THREE.Group();
+                    const straw = new THREE.Mesh(strawGeo, matStrawberry); straw.castShadow = true; strawGroup.add(straw);
+                    for(let j=0; j<4; j++) {
+                        const leaf = new THREE.Mesh(leafGeo, matLeaves); leaf.position.y = 0.45; leaf.rotation.x = Math.PI / 2; leaf.rotation.z = (j / 4) * Math.PI * 2; strawGroup.add(leaf);
+                    }
+                    strawGroup.position.set((radius-0.8) * Math.cos(angle), topY + 0.4, (radius-0.8) * Math.sin(angle));
+                    strawGroup.rotation.x = -Math.PI / 6; strawGroup.rotation.y = angle; tierGroup.add(strawGroup);
+                }
+
+                const blueGeo = new THREE.SphereGeometry(0.15, 16, 16);
+                for(let i=0; i<20; i++) {
+                    const angle = Math.random() * Math.PI * 2; const rBlue = 0.5 + Math.random() * (radius - 1.2); 
+                    const berry = new THREE.Mesh(blueGeo, matBlueberry);
+                    berry.position.set(rBlue * Math.cos(angle), topY + 0.15, rBlue * Math.sin(angle)); berry.castShadow = true; tierGroup.add(berry);
+                }
+            }
+            tierGroup.position.y = yOffset; return tierGroup;
+        }
+
+        cakeGroup.add(createTier(7, 4.5, 0, true));
+        
+        // Candles
+        const flames = [], candleLights = [], smokeParticles = [], roamingSmokes = [], convergingSmokes = [];
+        function addCandle(x, z) {
+            const candleGroup = new THREE.Group();
+            const meshCandle = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 2.5, 16), matCandle);
+            meshCandle.position.y = 1.25; meshCandle.castShadow = true; candleGroup.add(meshCandle);
+            const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.4, 8), new THREE.MeshStandardMaterial({color: 0x222222}));
+            wick.position.y = 2.6; candleGroup.add(wick);
+            const geoFlame = new THREE.ConeGeometry(0.2, 0.6, 16); geoFlame.translate(0, 0.3, 0); 
+            const flame = new THREE.Mesh(geoFlame, matFlame); flame.position.y = 2.7; candleGroup.add(flame); flames.push(flame);
+            const light = new THREE.PointLight(0xffaa00, 1.5, 20); light.position.y = 3.0; candleGroup.add(light); candleLights.push(light);
+            candleGroup.position.set(x, 4.5, z); cakeGroup.add(candleGroup);
+        }
+        addCandle(-2, 0.5); addCandle(0, -0.5); addCandle(2, 0.5); 
+
+        // Greeting Card & Picture Card
+        function createCardTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 300; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff8e1'; ctx.fillRect(0, 0, 512, 300); ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 15; ctx.strokeRect(15, 15, 482, 270);
+            ctx.fillStyle = '#4a2e24'; ctx.font = 'bold 55px "Segoe UI", Tahoma, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('hey ruby this is for', 256, 110); ctx.fillText('You D gurl!', 256, 190); return new THREE.CanvasTexture(canvas);
+        }
+        function createPoofButtonTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 128; canvas.height = 128; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffeb3b'; ctx.beginPath(); ctx.arc(64, 64, 60, 0, Math.PI * 2); ctx.fill(); ctx.lineWidth = 6; ctx.strokeStyle = '#ff9800'; ctx.stroke();
+            ctx.fillStyle = '#e91e63'; ctx.font = 'bold 30px "Segoe UI", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('Poof!', 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const cardMatFront = new THREE.MeshStandardMaterial({ map: createCardTexture(), roughness: 0.9, emissive: 0xffffff, emissiveIntensity: 0, transparent: true });
+        const cardMatSide = new THREE.MeshStandardMaterial({ color: '#fff8e1', roughness: 0.9, emissive: 0xfff8e1, emissiveIntensity: 0, transparent: true });
+        const cardMatBack = new THREE.MeshStandardMaterial({ color: '#ff4d6d', roughness: 0.9, emissive: 0xff4d6d, emissiveIntensity: 0, transparent: true }); 
+        const cardMaterials = [cardMatSide, cardMatSide, cardMatSide, cardMatSide, cardMatFront, cardMatBack];
+        const card = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.8, 0.1), cardMaterials);
+        card.name = "greetingCard";
+
+        const poofBtnMat = new THREE.MeshBasicMaterial({ map: createPoofButtonTexture(), transparent: true });
+        const cardPoofButton = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), poofBtnMat);
+        cardPoofButton.name = "poofButton"; cardPoofButton.position.set(1.5, -0.7, 0.06); card.add(cardPoofButton);
+        
+        const tablePos = new THREE.Vector3(8.5, 0.05, 6.5); const tableRot = new THREE.Euler(Math.PI / 2, 0, -Math.PI / 6); const tableQuat = new THREE.Quaternion().setFromEuler(tableRot);
+        card.position.copy(tablePos); card.quaternion.copy(tableQuat); card.castShadow = true; card.receiveShadow = true; cakeGroup.add(card);
+
+        // Keep local image URL exactly as requested
+        const imageUrl = 'pic.jpeg';
+        const picTex = new THREE.TextureLoader().load(imageUrl);
+        const picMatFront = new THREE.MeshStandardMaterial({ map: picTex, color: 0xffffff, roughness: 0.9, emissive: 0x111111, transparent: true, opacity: 0 });
+        const picMatSide = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.9, transparent: true, opacity: 0 });
+        const picCardMaterials = [picMatSide, picMatSide, picMatSide, picMatSide, picMatFront, picMatSide];
+        const picCard = new THREE.Mesh(new THREE.BoxGeometry(4.5, 2.8, 0.1), picCardMaterials);
+        picCard.name = "picCard";
+        
+        function createQuoteTexture() {
+            const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'transparent'; ctx.fillRect(0, 0, 512, 128); ctx.font = 'italic bold 45px "Segoe UI", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.shadowColor = '#ff4d6d'; ctx.shadowBlur = 15; ctx.fillStyle = '#ffffff'; ctx.fillText('hey you are shock!', 256, 64);
+            ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 4; ctx.fillText('hey you are shock!', 256, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+        const quoteMat = new THREE.MeshBasicMaterial({ map: createQuoteTexture(), transparent: true, opacity: 0 });
+        const quoteMesh = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 1.1), quoteMat);
+        quoteMesh.position.set(0, -1.8, 0.06); picCard.add(quoteMesh);
+        
+        const picScreenPos = new THREE.Vector3(-11, 7, 8); const picScreenRot = new THREE.Euler(-0.05, 0.4, -0.05); const picScreenQuat = new THREE.Quaternion().setFromEuler(picScreenRot);
+        picCard.position.copy(picScreenPos); picCard.quaternion.copy(picScreenQuat); picCard.castShadow = true; picCard.receiveShadow = true; picCard.visible = false; picCard.scale.set(0, 0, 0); cakeGroup.add(picCard);
+        
+        scene.add(cakeGroup); cakeGroup.position.y = -2;
+
+        // --- Glitch Effect Canvas Logic ---
+        const gCanvas = document.getElementById('glitch-canvas');
+        const gCtx = gCanvas.getContext('2d');
+        const glitchImg2D = new Image();
+        // Removed crossOrigin so it works properly with local files!
+        glitchImg2D.src = imageUrl; 
+        let glitchPhaseStartTime = 0;
+
+        function resizeGlitch() {
+            gCanvas.width = window.innerWidth;
+            gCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            adjustCameraOffset(); 
+            resizeGlitch();
+        });
+        resizeGlitch();
+
+        function drawGlitchScreen(progress, phaseTime = 0) {
+            const cols = 8, rows = 8;
+            const cellW = Math.ceil(gCanvas.width / cols), cellH = Math.ceil(gCanvas.height / rows);
+
+            if(progress >= 1.0) {
+                // Phase 4: Blast Outward into Dust Particles
+                if (phaseTime >= 10.0) {
+                    const centerX = gCanvas.width / 2, centerY = gCanvas.height / 2;
+
+                    if (!window.dustParticles) {
+                        window.dustParticles = [];
+                        const gap = 3;
+                        let imgData = null;
+                        
+                        try {
+                            imgData = gCtx.getImageData(0, 0, gCanvas.width, gCanvas.height).data;
+                        } catch(e) {
+                            console.warn("Canvas tainted by local image. Falling back to simple particles.");
+                        }
+                        
+                        const dustCols = 20, dustRows = 20;
+
+                        for (let r = 0; r < rows; r++) {
+                            for (let c = 0; c < cols; c++) {
+                                const cellDestX = c * cellW + gap, cellDestY = r * cellH + gap;
+                                const dustW = (cellW - gap * 2) / dustCols, dustH = (cellH - gap * 2) / dustRows;
+
+                                for (let dr = 0; dr < dustRows; dr++) {
+                                    for (let dc = 0; dc < dustCols; dc++) {
+                                        const px = cellDestX + dc * dustW + dustW / 2;
+                                        const py = cellDestY + dr * dustH + dustH / 2;
+                                        
+                                        let color = '#ff00ff';
+                                        if (imgData) {
+                                            const safeX = Math.max(0, Math.min(Math.floor(px), gCanvas.width - 1));
+                                            const safeY = Math.max(0, Math.min(Math.floor(py), gCanvas.height - 1));
+                                            const pixelIndex = (safeY * gCanvas.width + safeX) * 4;
+                                            color = `rgba(${imgData[pixelIndex]}, ${imgData[pixelIndex+1]}, ${imgData[pixelIndex+2]}, ${imgData[pixelIndex+3]/255})`;
+                                        } else {
+                                            const fallbacks = ['#ff00ff', '#00f3ff', '#ffffff', '#4b0082'];
+                                            color = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+                                        }
+
+                                        const dx = px - centerX, dy = py - centerY;
+                                        const explodeAngle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.5; 
+                                        const explodeForce = Math.random() * 30 + 5; 
+
+                                        window.dustParticles.push({
+                                            x: px, y: py, vx: Math.cos(explodeAngle) * explodeForce, vy: Math.sin(explodeAngle) * explodeForce,
+                                            size: Math.max(dustW, dustH) * (0.5 + Math.random()), color: color, life: 1.0 + Math.random() * 0.5
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    gCtx.fillStyle = 'rgba(5, 5, 5, 0.4)'; gCtx.fillRect(0, 0, gCanvas.width, gCanvas.height);
+                    let t = phaseTime - 10.0;
+
+                    for (let i = 0; i < window.dustParticles.length; i++) {
+                        let p = window.dustParticles[i];
+                        if (p.life > 0) {
+                            p.x += p.vx; p.y += p.vy; 
+                            p.vx *= 0.94; p.vy *= 0.94; // friction to slow down
+                            p.life -= 0.015; // fade out speed
+                            p.size *= 0.97; // shrink
+
+                            if (p.life > 0) {
+                                gCtx.globalAlpha = Math.min(1, p.life);
+                                gCtx.beginPath(); 
+                                gCtx.arc(p.x, p.y, Math.max(0.1, p.size), 0, Math.PI * 2); 
+                                gCtx.fillStyle = p.color; 
+                                gCtx.fill();
+                                gCtx.globalAlpha = 1.0;
+                            }
+                        }
+                    }
+
+                    // --- TRANSITION DIRECTLY TO REDIRECT ---
+                    if (t > 4.0 && currentPhase === 'cake') {
+                        currentPhase = 'final';
+                        
+                        // Fade out the pitch black 2D canvas entirely
+                        gCanvas.style.transition = 'opacity 2s ease-in-out';
+                        gCanvas.style.opacity = '0';
+                        
+                        // Automatically redirect to port.html once the dust has vanished
+                        setTimeout(() => { 
+                            window.location.href = 'port.html'; 
+                        }, 2000);
+                    }
+                    return;
+                }
+
+                // Phase 3: 64 Screens (8x8 grid) with Image
+                if (phaseTime >= 6.5) {
+                    if (phaseTime > 6.5 && phaseTime < 6.6) { gCtx.fillStyle = '#ffffff'; gCtx.fillRect(0, 0, gCanvas.width, gCanvas.height); return; }
+                    gCtx.fillStyle = '#050505'; gCtx.fillRect(0, 0, gCanvas.width, gCanvas.height);
+                    
+                    if (glitchImg2D.complete && glitchImg2D.naturalWidth !== 0) {
+                        const srcCellW = glitchImg2D.naturalWidth / cols, srcCellH = glitchImg2D.naturalHeight / rows;
+                        for (let r = 0; r < rows; r++) {
+                            for (let c = 0; c < cols; c++) {
+                                let jX = 0, jY = 0;
+                                if (phaseTime < 9.0) { jX = (Math.random() > 0.95) ? (Math.random() - 0.5) * 8 : 0; jY = (Math.random() > 0.95) ? (Math.random() - 0.5) * 8 : 0; }
+                                const gap = 3;
+                                const cellIndex = r * cols + c; let x = Math.sin(cellIndex * 9999) * 10000; const rand = x - Math.floor(x);
+                                const revealTime = 6.6 + rand * 2.0;
+
+                                if (phaseTime > revealTime) {
+                                    gCtx.drawImage(glitchImg2D, c * srcCellW, r * srcCellH, srcCellW, srcCellH, c * cellW + gap + jX, r * cellH + gap + jY, cellW - (gap * 2), cellH - (gap * 2));
+                                } else {
+                                    gCtx.fillStyle = Math.random() > 0.7 ? '#4b0082' : (Math.random() > 0.5 ? '#ff00ff' : '#111111');
+                                    gCtx.fillRect(c * cellW + gap, r * cellH + gap, cellW - (gap * 2), cellH - (gap * 2));
+                                }
+                            }
+                        }
+                    }
+                    gCtx.fillStyle = 'rgba(0,0,0,0.6)'; for(let i = 0; i < gCanvas.height; i += 4) { gCtx.fillRect(0, i, gCanvas.width, 2); }
+                    gCtx.fillStyle = `rgba(255,255,255,${Math.random() * 0.08})`; gCtx.fillRect(0, 0, gCanvas.width, gCanvas.height);
+                    return;
+                }
+                
+                // Phase 2: Blackout / Off State
+                if (phaseTime >= 5.0 && phaseTime < 6.5) { gCtx.fillStyle = '#000000'; gCtx.fillRect(0, 0, gCanvas.width, gCanvas.height); return; }
+
+                // Phase 1: Purple Screen with Text Sequence
+                gCtx.fillStyle = '#4b0082'; gCtx.fillRect(0, 0, gCanvas.width, gCanvas.height);
+                gCtx.fillStyle = 'rgba(0,0,0,0.3)'; for(let i=0; i<gCanvas.height; i+=4) gCtx.fillRect(0, i, gCanvas.width, 2);
+
+                gCtx.font = "bold 60px 'Courier New', Courier, monospace"; gCtx.textAlign = "left"; gCtx.shadowColor = '#ff00ff'; gCtx.shadowBlur = 10;
+                const text1 = [... "HAPPY BIRTHDAY"]; const text2 = [... "Rubeey 💜"]; const typingSpeed = 0.08; 
+
+                if (phaseTime > 2.0) {
+                    let startX1 = (gCanvas.width - gCtx.measureText("HAPPY BIRTHDAY").width) / 2;
+                    let count1 = Math.floor((phaseTime - 2.0) / typingSpeed);
+                    let showCursor1 = (phaseTime % 0.4 < 0.2) && (count1 <= text1.length);
+                    gCtx.fillStyle = '#ffffff'; gCtx.fillText(text1.slice(0, count1).join('') + (showCursor1 ? "_" : ""), startX1, gCanvas.height / 2 - 40);
+                }
+                if (phaseTime > 3.5) {
+                    let startX2 = (gCanvas.width - gCtx.measureText("Rubeey 💜").width) / 2;
+                    let count2 = Math.floor((phaseTime - 3.5) / typingSpeed);
+                    let showCursor2 = (phaseTime % 0.4 < 0.2); 
+                    gCtx.fillStyle = '#00ffcc'; gCtx.fillText(text2.slice(0, count2).join('') + (showCursor2 ? "_" : ""), startX2, gCanvas.height / 2 + 40);
+                }
+                gCtx.shadowBlur = 0; 
+                return;
+            }
+
+            gCtx.clearRect(0, 0, gCanvas.width, gCanvas.height);
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (Math.random() < progress + 0.05) {
+                        const purples = ['#4b0082', '#800080', '#8a2be2', '#9370db', '#9932cc', '#ff00ff'];
+                        gCtx.fillStyle = purples[Math.floor(Math.random() * purples.length)];
+                        const jX = (Math.random() - 0.5) * 15 * (1 - progress), jY = (Math.random() - 0.5) * 15 * (1 - progress);
+                        gCtx.fillRect(c * cellW + jX, r * cellH + jY, cellW, cellH);
+                        if (Math.random() > 0.5) { gCtx.fillStyle = 'rgba(255,255,255,0.2)'; gCtx.fillRect(c * cellW + jX, r * cellH + jY + Math.random() * cellH, cellW, 5); }
+                    }
+                }
+            }
+        }
+
+        // --- CARD CLICK LOGIC ---
+        let cardState = 'table', cardVanishProgress = 1.0, poofTime = 0, reassembleTime = 0, picRevealedTime = 0, glitchProgress = 0;
+        const clock = new THREE.Clock();
+        let isBlownOut = false;
+
+        function triggerCardPoof() {
+            if (cardState === 'poofed' || cardState === 'vanishing') return;
+            cardState = 'vanishing'; cardVanishProgress = 1.0; poofTime = clock.getElapsedTime();
+            const worldPos = new THREE.Vector3(); card.getWorldPosition(worldPos);
+            for(let i = 0; i < 40; i++) {
+                const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, color: Math.random() > 0.5 ? 0xdddddd : 0xffebee, transparent: true, opacity: 0.8 + Math.random() * 0.2, blending: THREE.NormalBlending, depthWrite: false }));
+                const offsetX = (Math.random() - 0.5) * 4.5, offsetY = (Math.random() - 0.5) * 3, offsetZ = (Math.random() - 0.5) * 1.5;
+                sprite.position.copy(worldPos).add(new THREE.Vector3(offsetX, offsetY, offsetZ)); sprite.rotation = Math.random() * Math.PI * 2;
+                const baseScale = 2.0 + Math.random() * 2.5; sprite.scale.set(baseScale, baseScale, 1);
+                sprite.userData = { velocity: new THREE.Vector3(offsetX * 0.02 + (Math.random() - 0.5) * 0.05, offsetY * 0.02 + Math.random() * 0.05, offsetZ * 0.02 + (Math.random() - 0.5) * 0.05), life: 1.0, scaleSpeed: 1.01 + Math.random() * 0.02, rotationSpeed: (Math.random() - 0.5) * 0.02, decayRate: 0.01 + Math.random() * 0.015 };
+                scene.add(sprite); roamingSmokes.push(sprite);
+            }
+        }
+
+        function triggerReassemble() {
+            cardState = 'reassembling'; reassembleTime = clock.getElapsedTime(); const targetWorldPos = new THREE.Vector3().copy(picScreenPos);
+            for(let i = 0; i < 50; i++) { 
+                const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, color: Math.random() > 0.3 ? 0xffffff : 0xffccaa, transparent: true, opacity: 0, blending: THREE.NormalBlending, depthWrite: false }));
+                const radius = 10 + Math.random() * 5, angle = Math.random() * Math.PI * 2, offset = new THREE.Vector3(radius * Math.cos(angle), (Math.random() - 0.5) * 8, radius * Math.sin(angle));
+                sprite.position.copy(targetWorldPos).add(offset); sprite.rotation = Math.random() * Math.PI * 2;
+                const baseScale = 1.5 + Math.random() * 2.0; sprite.scale.set(baseScale, baseScale, 1);
+                sprite.userData = { velocity: new THREE.Vector3(-offset.x / 90, -offset.y / 90, -offset.z / 90), life: 1.0, scaleSpeed: 0.97, rotationSpeed: 0.05 * (Math.random() > 0.5 ? 1 : -1), decayRate: 1.0 / 90, maxOpacity: 0.8 };
+                scene.add(sprite); convergingSmokes.push(sprite);
+            }
+        }
+
+        // --- RENDER LOOP ---
+        let currentReadingCard = null;
+        let targetPos = new THREE.Vector3(), targetQuat = new THREE.Quaternion();
+        const raycaster = new THREE.Raycaster(), mouse = new THREE.Vector2();
+
+        window.addEventListener('pointerdown', (e) => {
+            if (currentPhase !== 'cake') return; // Disable interactions if in final phase
+            if(e.target.tagName === 'BUTTON' || e.target.closest('.mic-popup')) return;
+            
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects([card, picCard], true);
+            if (intersects.length > 0) {
+                if (!isBlownOut) return;
+                const hitObject = intersects[0].object;
+                if (hitObject.name === 'poofButton' && cardState === 'reading') triggerCardPoof();
+                else if (cardState === 'table' || cardState === 'animating_down' || cardState === 'pic_revealed') {
+                    let clickedCardMesh = intersects[0].object;
+                    if (clickedCardMesh.name === 'poofButton') clickedCardMesh = card;
+                    toggleCard(clickedCardMesh);
+                } else if (cardState === 'reading') toggleCard();
+            } else if (cardState === 'reading') toggleCard(); 
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (currentPhase !== 'cake') { document.body.style.cursor = 'default'; return; }
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1; mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+            document.body.style.cursor = (raycaster.intersectObjects([card, picCard], true).length > 0 && isBlownOut) ? 'pointer' : 'default';
+        });
+
+        function toggleCard(clickedCardMesh) {
+            if (cardState === 'poofed' || cardState === 'vanishing' || cardState === 'reassembling' || cardState === 'revealing_pic' || cardState === 'glitching' || cardState === 'glitched') return; 
+
+            if (cardState === 'table' || cardState === 'animating_down' || cardState === 'pic_revealed') {
+                currentReadingCard = clickedCardMesh || card; cardState = 'animating_up';
+                targetPos.set(0, 0, -7); targetPos.applyMatrix4(camera.matrixWorld); cakeGroup.worldToLocal(targetPos); 
+                targetQuat.copy(camera.quaternion); controls.enabled = false; 
+            } else if (cardState === 'reading' || cardState === 'animating_up') {
+                cardState = 'animating_down';
+                targetPos.copy(currentReadingCard.name === 'picCard' ? picScreenPos : tablePos);
+                targetQuat.copy(currentReadingCard.name === 'picCard' ? picScreenQuat : tableQuat);
+                controls.enabled = true;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const delta = clock.getDelta();
+            const time = clock.getElapsedTime();
+            const smoothLerp = 1.0 - Math.exp(-5.0 * delta); 
+            const deltaMult = delta * 60; 
+
+            if (currentPhase === 'cake') {
+                if (!isUserInteracting && (cardState === 'table' || cardState === 'poofed' || cardState === 'pic_revealed')) {
+                    camera.position.lerp(defaultCameraPos, smoothLerp * 0.5); 
+                    controls.target.lerp(defaultTarget, smoothLerp * 0.5);
+                }
+
+                if (cardState === 'vanishing') {
+                    cardVanishProgress -= 1.5 * delta; 
+                    if (cardVanishProgress <= 0) { 
+                        cardVanishProgress = 0; 
+                        cardState = 'poofed'; 
+                        card.visible = false; 
+                        controls.enabled = true; 
+                    }
+                    cardMaterials.forEach(mat => mat.opacity = cardVanishProgress); 
+                    poofBtnMat.opacity = cardVanishProgress; 
+                    card.position.y += 0.5 * delta; 
+                }
+
+                if (cardState === 'poofed' && (time - poofTime) > 5.0) triggerReassemble();
+                if (cardState === 'reassembling' && (time - reassembleTime > 1.5)) cardState = 'revealing_pic';
+
+                if (cardState === 'revealing_pic') {
+                    picCard.visible = true; 
+                    let rawProgress = Math.min(1.0, (time - reassembleTime - 1.5) * 1.5); 
+                    let smoothProgress = Math.sin(rawProgress * (Math.PI / 2)); 
+
+                    picCardMaterials.forEach(mat => mat.opacity = smoothProgress); 
+                    quoteMat.opacity = smoothProgress;
+                    picCard.scale.setScalar(smoothProgress); 
+                    picCard.quaternion.copy(picScreenQuat);
+                    picCard.position.set(picScreenPos.x, (picScreenPos.y - 1.5) + (1.5 * smoothProgress), picScreenPos.z);
+                    
+                    if (rawProgress >= 1.0) { 
+                        cardState = 'pic_revealed'; 
+                        picCard.position.copy(picScreenPos); 
+                        picRevealedTime = time; 
+                    }
+                }
+
+                if (picRevealedTime > 0 && (time - picRevealedTime > 5.0) && cardState !== 'glitching' && cardState !== 'glitched') {
+                    cardState = 'glitching'; document.getElementById('glitch-canvas').style.display = 'block';
+                }
+
+                if (cardState === 'glitching') {
+                    glitchProgress += 0.9 * delta; 
+                    drawGlitchScreen(glitchProgress, 0);
+                    if (glitchProgress >= 1.0) { cardState = 'glitched'; document.getElementById('glitch-canvas').style.pointerEvents = 'auto'; glitchPhaseStartTime = time; }
+                } else if (cardState === 'glitched') {
+                    drawGlitchScreen(1.0, time - glitchPhaseStartTime);
+                }
+
+                if (cardState === 'animating_up' || cardState === 'animating_down') {
+                    currentReadingCard.position.lerp(targetPos, smoothLerp * 1.5); 
+                    currentReadingCard.quaternion.slerp(targetQuat, smoothLerp * 1.5);
+                    if (currentReadingCard.position.distanceTo(targetPos) < 0.02) {
+                        currentReadingCard.position.copy(targetPos); currentReadingCard.quaternion.copy(targetQuat);
+                        cardState = cardState === 'animating_up' ? 'reading' : (currentReadingCard.name === 'picCard' ? 'pic_revealed' : 'table');
+                    }
+                }
+
+                if (!isBlownOut) {
+                    flames.forEach((flame, index) => {
+                        flame.scale.set(1, 1 + Math.sin(time * 20 + index) * 0.1, 1);
+                        flame.rotation.set(Math.cos(time * 15 + index) * 0.1, 0, Math.sin(time * 10 + index) * 0.1);
+                        candleLights[index].intensity = 0.8 + Math.sin(time * 20 + index) * 0.2;
+                    });
+                    cardMatFront.emissiveIntensity = 0; cardMatSide.emissiveIntensity = 0; cardMatBack.emissiveIntensity = 0;
+                } else if (cardState !== 'vanishing' && cardState !== 'poofed') {
+                    const glow = 0.8 + Math.sin(time * 4) * 0.4; 
+                    cardMatFront.emissive.setHex(0xff66a3);
+                    cardMatSide.emissive.setHex(0xff66a3);
+                    cardMatBack.emissive.setHex(0xff66a3);
+                    cardMatFront.emissiveIntensity = glow; cardMatSide.emissiveIntensity = glow * 0.5; cardMatBack.emissiveIntensity = glow;
+                }
+
+                // Update particle systems
+                for (let i = roamingSmokes.length - 1; i >= 0; i--) {
+                    let p = roamingSmokes[i]; 
+                    p.position.addScaledVector(p.userData.velocity, deltaMult); 
+                    p.rotation += p.userData.rotationSpeed * deltaMult; 
+                    p.scale.multiplyScalar(Math.pow(p.userData.scaleSpeed, deltaMult)); 
+                    p.userData.life -= p.userData.decayRate * deltaMult; 
+                    p.material.opacity = p.userData.life; 
+                    if (p.userData.life <= 0) { scene.remove(p); p.material.dispose(); roamingSmokes.splice(i, 1); }
+                }
+
+                for (let i = convergingSmokes.length - 1; i >= 0; i--) {
+                    let p = convergingSmokes[i]; 
+                    p.position.addScaledVector(p.userData.velocity, deltaMult); 
+                    p.rotation += p.userData.rotationSpeed * deltaMult; 
+                    p.scale.multiplyScalar(Math.pow(p.userData.scaleSpeed, deltaMult)); 
+                    p.userData.life -= p.userData.decayRate * deltaMult; 
+                    p.material.opacity = p.userData.maxOpacity * Math.sin(Math.max(0, p.userData.life) * Math.PI);
+                    if (p.userData.life <= 0) { scene.remove(p); p.material.dispose(); convergingSmokes.splice(i, 1); }
+                }
+
+                for (let i = smokeParticles.length - 1; i >= 0; i--) {
+                    let p = smokeParticles[i]; 
+                    p.position.y += p.userData.vy * deltaMult; 
+                    p.position.x += p.userData.vx * deltaMult; 
+                    p.rotation += p.userData.rotationSpeed * deltaMult; 
+                    p.scale.multiplyScalar(Math.pow(1.02, deltaMult)); 
+                    p.material.opacity -= 0.015 * deltaMult; 
+                    if (p.material.opacity <= 0) { scene.remove(p); p.material.dispose(); smokeParticles.splice(i, 1); }
+                }
+
+                controls.update(); 
+                renderer.render(scene, camera);
+
+            }
+        }
+        animate();
+
+        // --- 7. MICROPHONE LOGIC ---
+        const startBtn = document.getElementById('start-btn'), micPopup = document.getElementById('mic-popup'), statusText = document.getElementById('mic-status'), meterContainer = document.getElementById('meter-container'), meterFill = document.getElementById('meter');
+        let audioContext, analyser, microphone, isListening = false, micAnimationId;
+        const BLOW_THRESHOLD = 50;
+
+        function spawnSmoke(x, y, z) {
+            for(let i=0; i<8; i++) {
+                const particle = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, color: Math.random() > 0.5 ? 0xaaaaaa : 0xffccaa, transparent: true, opacity: 0.8, blending: THREE.NormalBlending, depthWrite: false }));
+                particle.position.set(x, y, z); particle.scale.setScalar(0.8 + Math.random() * 1.2); particle.rotation = Math.random() * Math.PI * 2;
+                particle.userData = { vy: 0.02 + Math.random() * 0.04, vx: (Math.random() - 0.5) * 0.03, rotationSpeed: (Math.random() - 0.5) * 0.05 };
+                scene.add(particle); smokeParticles.push(particle);
+            }
+        }
+
+        function extinguishCandles() {
+            if (isBlownOut) return; isBlownOut = true;
+            flames.forEach((flame, index) => {
+                setTimeout(() => {
+                    flame.visible = false; candleLights[index].intensity = 0;
+                    const worldPos = new THREE.Vector3(); flame.getWorldPosition(worldPos); spawnSmoke(worldPos.x, worldPos.y, worldPos.z);
+                }, index * 100); 
+            });
+            statusText.innerText = "Yay! Happy Birthday! 🎉"; statusText.style.color = "#e91e63"; isListening = false;
+            
+            if(microphone && microphone.mediaStream) microphone.mediaStream.getTracks().forEach(track => track.stop());
+            if(audioContext) audioContext.close(); if(micAnimationId) cancelAnimationFrame(micAnimationId);
+            
+            setTimeout(() => { 
+                micPopup.style.opacity = '0';
+                micPopup.style.transform = 'translate(-50%, 50px) scale(0.8)'; 
+                
+                setTimeout(() => {
+                    micPopup.style.display = 'none';
+                    // The auto-poof timeout was removed here. 
+                    // The user now must manually click the glowing card!
+                }, 600);
+            }, 1500);
+        }
+
+        startBtn.addEventListener('click', async () => {
+            if (isListening) return;
+            // HTTPS Check
+            if (!window.isSecureContext) {
+                statusText.innerText = "Mic requires HTTPS!";
+                statusText.style.color = "#d32f2f";
+                return;
+            }
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)(); if (audioContext.state === 'suspended') await audioContext.resume();
+                analyser = audioContext.createAnalyser(); microphone = audioContext.createMediaStreamSource(stream); microphone.connect(analyser); analyser.fftSize = 256;
+                const bufferLength = analyser.frequencyBinCount, dataArray = new Uint8Array(bufferLength);
+                
+                startBtn.classList.add('hidden'); 
+                statusText.innerText = "Listening... Blow into the mic! 🌬️"; 
+                meterContainer.style.display = 'block'; 
+                micPopup.classList.add('listening'); 
+                
+                isListening = true;
+                function detectBlow() {
+                    if (!isListening) return; analyser.getByteFrequencyData(dataArray);
+                    let sum = 0; for (let i = 0; i < bufferLength; i++) sum += dataArray[i];
+                    let avgVol = sum / bufferLength; meterFill.style.width = `${Math.min((avgVol / 100) * 100, 100)}%`;
+                    if (avgVol > BLOW_THRESHOLD) { meterFill.style.backgroundColor = '#f44336'; extinguishCandles(); } 
+                    else { meterFill.style.backgroundColor = '#4CAF50'; micAnimationId = requestAnimationFrame(detectBlow); }
+                }
+                detectBlow();
+            } catch (err) { console.error(err); statusText.innerText = "Mic access blocked."; statusText.style.color = "#d32f2f"; }
+        });
+
+    </script>
+</body>
+</html>

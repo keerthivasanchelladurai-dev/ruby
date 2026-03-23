@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Temporal Vortex: 2005 - 2026</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Segoe UI', 'Courier New', monospace;
+            color: white;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* --- Vortex HUD Transitions --- */
+        #hud {
+            position: absolute;
+            top: 45%; 
+            z-index: 10;
+            pointer-events: none;
+            width: 100%;
+        }
+
+        .message-box {
+            position: absolute;
+            transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+            opacity: 0;
+            filter: blur(20px);
+            /* Vortex entry effect: spun out and scaled down */
+            transform: translateY(-50%) rotate(-25deg) scale(0.5);
+        }
+
+        .message-box.visible {
+            opacity: 1;
+            filter: blur(0);
+            transform: translateY(-50%) rotate(0deg) scale(1);
+        }
+
+        .hud-left { left: 8%; text-align: left; }
+        .hud-right { right: 8%; text-align: right; }
+
+        .hud-left.visible { transform: translateY(-50%) perspective(1000px) rotateY(15deg) scale(1); }
+        .hud-right.visible { transform: translateY(-50%) perspective(1000px) rotateY(-15deg) scale(1); }
+
+        #status-label {
+            display: block;
+            color: rgba(162, 0, 255, 0.9);
+            font-size: 0.85rem;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+            font-weight: bold;
+        }
+
+        #main-message {
+            font-size: 3.2rem; /* Reduced slightly to fit long numbers */
+            font-weight: 900;
+            font-style: italic;
+            text-transform: uppercase;
+            margin: 0;
+            line-height: 0.85;
+            letter-spacing: -1px;
+            background: linear-gradient(to bottom, #fff, #a200ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        #flash-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        #flash-overlay.final-flash {
+            transition: opacity 1.5s ease-in;
+            opacity: 1 !important;
+        }
+
+        /* --- Start Screen & Mobile Fixes --- */
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            color: #a200ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            cursor: pointer;
+            transition: opacity 0.5s ease;
+            font-size: 1.5rem;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.7; }
+            50% { opacity: 1; text-shadow: 0 0 15px rgba(162, 0, 255, 0.8); }
+            100% { opacity: 0.7; }
+        }
+
+        @media (max-width: 768px) {
+            #main-message { font-size: 2rem; word-wrap: break-word; }
+            .hud-left, .hud-right { left: 5%; right: 5%; text-align: center; width: 90%; }
+        }
+
+        @media (max-width: 480px) {
+            #main-message { font-size: 1.5rem; letter-spacing: 0; line-height: 1; }
+            #status-label { font-size: 0.7rem; }
+            .message-box { filter: blur(10px); }
+            .message-box.visible { transform: translateY(-50%) rotate(0deg) scale(0.95); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">Tap to Initiate</div>
+
+    <!-- Hidden audio player with a placeholder song -->
+    <audio id="vortex-audio" loop>
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+    </audio>
+
+    <div id="canvas-container"></div>
+    <div id="flash-overlay"></div>
+
+    <div id="hud">
+        <div class="message-box" id="msgBox">
+            <span id="status-label">Phase Update</span>
+            <h1 id="main-message">LIFTOFF</h1>
+        </div>
+    </div>
+
+    <script>
+        const NEXT_PAGE_URL = "space.html";
+
+        // --- PART 1: VORTEX 3D ENGINE ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000a1a, 0.0025); 
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1200);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const points = [];
+        for (let i = 0; i < 80; i++) {
+            const angle = i * 0.2;
+            points.push(new THREE.Vector3(Math.sin(angle) * 12, Math.cos(angle) * 12, i * 35));
+        }
+        const curve = new THREE.CatmullRomCurve3(points);
+        
+        const tubeGeo = new THREE.TubeGeometry(curve, 150, 15, 32, false);
+        const tubeMat = new THREE.MeshBasicMaterial({ 
+            color: 0xa200ff, // Changed to purple
+            wireframe: true, 
+            side: THREE.BackSide,
+            transparent: true,
+            opacity: 0.15,
+            blending: THREE.AdditiveBlending
+        });
+        const vortex = new THREE.Mesh(tubeGeo, tubeMat);
+        scene.add(vortex);
+
+        const particleCount = 12000;
+        const pGeo = new THREE.BufferGeometry();
+        const pPos = new Float32Array(particleCount * 3);
+        const pColors = new Float32Array(particleCount * 3);
+
+        for(let i=0; i<particleCount; i++) {
+            const t = Math.random();
+            const point = curve.getPointAt(t);
+            const radius = 5 + Math.random() * 20;
+            const angle = Math.random() * Math.PI * 2;
+            
+            pPos[i*3] = point.x + Math.cos(angle) * radius;
+            pPos[i*3+1] = point.y + Math.sin(angle) * radius;
+            pPos[i*3+2] = point.z;
+
+            // Updated colors to match purple theme
+            pColors[i*3] = 0.6 + Math.random() * 0.4;     // R (High red for purple)
+            pColors[i*3+1] = Math.random() * 0.3;         // G (Low green)
+            pColors[i*3+2] = 0.8 + Math.random() * 0.2;   // B (High blue for purple)
+        }
+
+        pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        pGeo.setAttribute('color', new THREE.BufferAttribute(pColors, 3));
+        
+        const pMat = new THREE.PointsMaterial({ 
+            size: 0.15, 
+            vertexColors: true, 
+            transparent: true, 
+            opacity: 0.6,
+            blending: THREE.AdditiveBlending 
+        });
+        const particleSystem = new THREE.Points(pGeo, pMat);
+        scene.add(particleSystem);
+
+        let speed = 1.0;
+        let pos = 0;
+        let cameraSpin = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            pos += 0.0006 * speed;
+            if(pos > 0.94) pos = 0;
+            
+            const p1 = curve.getPointAt(pos);
+            const p2 = curve.getPointAt(pos + 0.01);
+            
+            camera.position.copy(p1);
+            camera.lookAt(p2);
+            
+            cameraSpin += 0.02 * speed;
+            camera.rotateZ(cameraSpin * 0.01);
+
+            vortex.rotation.z += 0.002 * speed;
+            particleSystem.rotation.z -= 0.001 * speed;
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Exact 5 messages - Friendship Theme
+        const messages = [
+            { text: "21 YEARS", label: "Still together" },              // 0s
+            { text: "7,670 DAYS", label: "Through everything" },        // 3s
+            { text: "184,080 HOURS", label: "Laughs & memories" },      // 6s
+            { text: "11,044,800 MINUTES", label: "Unbreakable bond" },  // 9s
+            { text: "FOREVER FRIENDS", label: "More years to go" }      // 12s
+        ];
+
+        let elapsed = 0;
+        const duration = 15; 
+        let interval;
+
+        // Requires user interaction to play audio on mobile browsers
+        document.getElementById('start-screen').addEventListener('click', function() {
+            // Hide start screen
+            this.style.opacity = '0';
+            setTimeout(() => this.style.display = 'none', 500);
+
+            // Play music
+            const audio = document.getElementById('vortex-audio');
+            audio.play().catch(e => console.log("Audio play failed:", e));
+
+            // Start timeline
+            interval = setInterval(() => {
+                elapsed += 0.05;
+                const progress = Math.min(elapsed / duration, 1);
+                
+                // Speed curve
+                speed = 1.5 + (Math.pow(progress, 2) * 18);
+
+                // Message Rotation
+                const phase = Math.floor(progress * 5);
+                const msgBox = document.getElementById('msgBox');
+                if (phase < messages.length && msgBox.dataset.index != phase) {
+                    msgBox.dataset.index = phase;
+                    msgBox.classList.remove('visible');
+                    
+                    setTimeout(() => {
+                        const isLeft = phase % 2 === 0;
+                        msgBox.className = `message-box visible ${isLeft ? 'hud-left' : 'hud-right'}`;
+                        
+                        // Fixed: mapping to .text and .label instead of .t and .l
+                        document.getElementById('main-message').innerText = messages[phase].text;
+                        document.getElementById('status-label').innerText = messages[phase].label;
+                    }, 400);
+                }
+
+                if (progress >= 1) {
+                    clearInterval(interval);
+                    handleFinish();
+                }
+            }, 50);
+        });
+
+        function handleFinish() {
+            document.getElementById('hud').style.opacity = '0';
+            const flash = document.getElementById('flash-overlay');
+            flash.classList.add('final-flash');
+            
+            setTimeout(() => {
+                if (NEXT_PAGE_URL) {
+                    window.location.href = NEXT_PAGE_URL;
+                }
+            }, 1500);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

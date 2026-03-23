@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WhatsApp Chat UI</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for standard icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom scrollbar to match mobile feel */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+        
+        /* WhatsApp default chat background pattern simulation */
+        .chat-bg {
+            background-color: #efeae2;
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23000000' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+
+        /* Message tail triangles using pseudo-elements */
+        .msg-received::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -8px;
+            width: 0;
+            height: 0;
+            border-top: 10px solid white;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+        }
+
+        .msg-sent::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: -8px;
+            width: 0;
+            height: 0;
+            border-top: 10px solid #d9fdd3;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+        }
+    </style>
+</head>
+<body class="bg-gray-200 h-screen flex justify-center items-center font-sans antialiased">
+
+    <!-- Mobile Device Container -->
+    <div class="w-full h-full sm:h-[90vh] sm:w-[400px] sm:rounded-[2rem] sm:shadow-2xl overflow-hidden flex flex-col bg-white relative border-gray-300 sm:border-[8px]">
+        
+        <!-- Header -->
+        <header class="bg-[#008069] text-white flex items-center justify-between px-2 py-3 z-10 shadow-md">
+            <div class="flex items-center gap-1 cursor-pointer hover:bg-white/10 p-1 rounded-full transition">
+                <i class="fas fa-arrow-left text-lg pl-1"></i>
+                <img src="https://i.pravatar.cc/150?img=32" alt="Profile Picture" class="w-10 h-10 rounded-full object-cover border border-white/20 ml-1">
+                <div class="flex flex-col ml-2">
+                    <span class="font-medium text-[16px] leading-tight truncate max-w-[120px]">Sarah Williams</span>
+                    <span class="text-[11px] text-white/80">online</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-5 text-[18px] pr-2">
+                <i class="fas fa-video cursor-pointer"></i>
+                <i class="fas fa-phone cursor-pointer"></i>
+                <i class="fas fa-ellipsis-v cursor-pointer pl-2"></i>
+            </div>
+        </header>
+
+        <!-- Chat Area -->
+        <main class="flex-1 overflow-y-auto p-4 flex flex-col gap-3 chat-bg" id="chat-container">
+            
+            <!-- Encryption Notice -->
+            <div class="flex justify-center mb-2 mt-2">
+                <div class="bg-[#ffeecd] text-gray-600 text-[11px] px-3 py-1.5 rounded-lg text-center shadow-sm max-w-[90%] leading-tight">
+                    <i class="fas fa-lock mr-1 text-[10px]"></i> Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.
+                </div>
+            </div>
+
+            <!-- Date Separator -->
+            <div class="flex justify-center mb-2">
+                <span class="bg-white text-gray-500 text-[12px] px-3 py-1 rounded-lg shadow-sm">TODAY</span>
+            </div>
+
+            <!-- Received Message 1 -->
+            <div class="flex self-start max-w-[85%] relative mt-2 pl-2">
+                <div class="bg-white rounded-lg rounded-tl-none px-2.5 pt-1.5 pb-1 shadow-sm msg-received relative">
+                    <p class="text-[14.5px] text-gray-800 leading-snug break-words pr-12">Hey! Just wanted to say how much I appreciate you being there for me lately. You're the best! ❤️</p>
+                    <span class="text-[10px] text-gray-400 absolute bottom-1 right-2">10:15 AM</span>
+                </div>
+            </div>
+
+            <!-- Sent Message 1 -->
+            <div class="flex self-end max-w-[85%] relative mt-1 pr-2">
+                <div class="bg-[#d9fdd3] rounded-lg rounded-tr-none px-2.5 pt-1.5 pb-1 shadow-sm msg-sent relative">
+                    <p class="text-[14.5px] text-gray-800 leading-snug break-words pr-16">Aww, you're making me blush! 🥺 You know I've always got your back, no matter what.</p>
+                    <div class="flex items-center gap-1 absolute bottom-1 right-2">
+                        <span class="text-[10px] text-[#667781]">10:17 AM</span>
+                        <i class="fas fa-check-double text-[#53bdeb] text-[10px]"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Received Message 2 -->
+            <div class="flex self-start max-w-[85%] relative mt-1 pl-2">
+                <div class="bg-white rounded-lg rounded-tl-none px-2.5 pt-1.5 pb-1 shadow-sm msg-received relative"> 
+                    <p class="text-[14.5px] text-gray-800 leading-snug break-words pr-12">I know! We seriously need to catch up properly soon. Coffee this weekend?</p>
+                    <span class="text-[10px] text-gray-400 absolute bottom-1 right-2">10:18 AM</span>
+                </div>
+            </div>
+
+            <!-- Sent Message 2 -->
+            <div class="flex self-end max-w-[85%] relative mt-1 pr-2">
+                <div class="bg-[#d9fdd3] rounded-lg rounded-tr-none px-2.5 pt-1.5 pb-1 shadow-sm msg-sent relative">
+                    <p class="text-[14.5px] text-gray-800 leading-snug break-words pr-16">Yes! I need my weekly dose of our crazy talks. Saturday works for you?</p>
+                    <div class="flex items-center gap-1 absolute bottom-1 right-2">
+                        <span class="text-[10px] text-[#667781]">10:20 AM</span>
+                        <i class="fas fa-check-double text-[#53bdeb] text-[10px]"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Received Message 3 (Consecutive, so no tail) -->
+            <div class="flex self-start max-w-[85%] relative mt-1 pl-2">
+                <div class="bg-white rounded-lg px-2.5 pt-1.5 pb-1 shadow-sm relative"> 
+                    <p class="text-[14.5px] text-gray-800 leading-snug break-words pr-12">Perfect! It's a date. ☕️✨</p>
+                    <span class="text-[10px] text-gray-400 absolute bottom-1 right-2">10:21 AM</span>
+                </div>
+            </div>
+            
+        </main>
+
+        <!-- Input Footer -->
+        <footer class="bg-[#f0f2f5] px-2 py-2.5 flex items-end gap-2 z-10 w-full">
+            <div class="bg-white flex-1 rounded-3xl flex items-end px-3 py-2 shadow-sm min-h-[44px]">
+                <i class="far fa-smile text-[#8696a0] text-[22px] cursor-pointer mb-1"></i>
+                <textarea id="message-input" rows="1" placeholder="Message" class="flex-1 bg-transparent outline-none text-[15px] px-3 py-0 max-h-24 resize-none mx-1 text-gray-800 mb-[2px] self-center overflow-hidden"></textarea>
+                <div class="flex items-center gap-3 text-[#8696a0] text-[20px] mb-1">
+                    <i class="fas fa-paperclip cursor-pointer transform -rotate-45"></i>
+                    <i class="fas fa-camera cursor-pointer" id="camera-icon"></i>
+                </div>
+            </div>
+            <button id="action-btn" class="bg-[#00a884] hover:bg-[#008f6f] text-white rounded-full w-[44px] h-[44px] flex items-center justify-center shadow-sm shrink-0 transition-colors duration-200">
+                <i class="fas fa-microphone text-[19px]" id="mic-icon"></i>
+                <i class="fas fa-paper-plane text-[18px] pr-1 hidden" id="send-icon"></i>
+            </button>
+        </footer>
+    </div>
+
+    <!-- JavaScript for Interactions -->
+    <script>
+        const messageInput = document.getElementById('message-input');
+        const actionBtn = document.getElementById('action-btn');
+        const micIcon = document.getElementById('mic-icon');
+        const sendIcon = document.getElementById('send-icon');
+        const cameraIcon = document.getElementById('camera-icon');
+        const chatContainer = document.getElementById('chat-container');
+
+        // Auto-resize textarea
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+            
+            // Toggle Mic/Send icon based on input length
+            if (this.value.trim().length > 0) {
+                micIcon.classList.add('hidden');
+                sendIcon.classList.remove('hidden');
+                cameraIcon.classList.add('hidden'); // Optional: hide camera when typing
+            } else {
+                micIcon.classList.remove('hidden');
+                sendIcon.classList.add('hidden');
+                cameraIcon.classList.remove('hidden');
+                this.style.height = 'auto'; // Reset height
+            }
+        });
+
+        // Function to format current time like "06:45 PM"
+        function getCurrentTime() {
+            const now = new Date();
+            let hours = now.getHours();
+            let minutes = now.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12;
+            hours = hours ? hours : 12; 
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            return hours + ':' + minutes + ' ' + ampm;
+        }
+
+        // Send Message logic
+        function sendMessage() {
+            const text = messageInput.value.trim();
+            if (text.length === 0) return;
+
+            const timeString = getCurrentTime();
+
+            // Create HTML for new message bubble
+            const messageHTML = `
+                <div class="flex self-end max-w-[85%] relative mt-1 pr-2 animate-fade-in">
+                    <div class="bg-[#d9fdd3] rounded-lg px-2.5 pt-1.5 pb-1 shadow-sm relative min-w-[80px]"> 
+                        <p class="text-[14.5px] text-gray-800 leading-snug break-words pr-16 whitespace-pre-wrap">${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+                        <div class="flex items-center gap-1 absolute bottom-1 right-2">
+                            <span class="text-[10px] text-[#667781]">${timeString}</span>
+                            <i class="fas fa-check text-gray-400 text-[10px]"></i>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Insert message and scroll down
+            chatContainer.insertAdjacentHTML('beforeend', messageHTML);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // Reset Input
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            messageInput.dispatchEvent(new Event('input')); // Reset icons
+            
+            // Focus back on input
+            messageInput.focus();
+        }
+
+        // Event listeners for sending
+        actionBtn.addEventListener('click', () => {
+            if (messageInput.value.trim().length > 0) {
+                sendMessage();
+            }
+        });
+
+        messageInput.addEventListener('keypress', function(e) {
+            // Send on Enter (but allow Shift+Enter for new line)
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Add a simple fade-in animation style dynamically
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(10px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            .animate-fade-in {
+                animation: fadeIn 0.3s ease-out forwards;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>

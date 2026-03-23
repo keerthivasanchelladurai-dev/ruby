@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive 3D Heart Greetings</title>
+
+  <!-- Three.js for 3D rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Tailwind CSS for utility styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Quicksand:wght@300;500;700&family=Cinzel:wght@400;700&display=swap');
+
+    body {
+      margin: 0;
+      background-color: #050510;
+      color: white;
+      font-family: 'Quicksand', sans-serif;
+      overflow: hidden; /* Prevent scrolling in this standalone demo */
+    }
+
+    #star-bg {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      z-index: -1;
+      pointer-events: none;
+      background: radial-gradient(circle at 50% 30%, #1a1a2e 0%, #000000 80%);
+    }
+
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 3s infinite ease-in-out;
+    }
+
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
+
+    /* Full screen container for the heart */
+    #heart-container {
+      width: 100vw;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Greeting Card Styles */
+    .greeting-card {
+      position: absolute;
+      top: 50%;
+      width: 220px;
+      padding: 14px;
+      background: rgba(255,255,255,1);
+      border-radius: 16px;
+      box-shadow: 0 0 30px rgba(168,85,247,0.8);
+      z-index: 50;
+      opacity: 1;
+      text-align: center;
+      transform: translateY(-50%);
+      animation: floatIn 0.6s cubic-bezier(.17,.89,.32,1.27) forwards;
+      pointer-events: none; /* Let clicks pass through to the 3D canvas if needed */
+    }
+
+    .greeting-card.right { right: 10%; }
+    .greeting-card.left { left: 10%; }
+
+    .greeting-card.fade-out-down {
+      animation: fadeD 0.5s ease-in forwards !important;
+    }
+
+    @keyframes floatIn {
+      0% { opacity: 0; transform: translateY(-70%) scale(.6); }
+      100% { opacity: 1; transform: translateY(-50%) scale(1); }
+    }
+
+    @keyframes fadeD {
+      0% { opacity: 1; transform: translateY(-50%) scale(1); }
+      100% { opacity: 0; transform: translateY(50px) scale(.8); }
+    }
+
+    @media (max-width: 600px) {
+      .greeting-card { width: 160px; padding: 10px; }
+      .greeting-card.right { right: 5%; }
+      .greeting-card.left { left: 5%; }
+    }
+
+    .greeting-card img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin: 8px auto;
+      border: 3px solid #a855f7;
+      box-shadow: 0 0 18px rgba(168,85,247,0.6);
+    }
+
+    .greeting-card h3 {
+      font-family: 'Cinzel', serif;
+      font-weight: 700;
+      color: #6b21a8;
+      font-size: 1.35rem;
+      margin-bottom: 6px;
+    }
+
+    .greeting-card p {
+      font-family: 'Dancing Script', cursive;
+      font-weight: 700;
+      color: #4c1d95;
+      font-size: 1.2rem;
+      line-height: 1.3;
+    }
+    
+    .instruction {
+      position: absolute;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      color: #d8b4fe;
+      font-family: 'Cinzel', serif;
+      pointer-events: none;
+      z-index: 10;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Background Stars -->
+  <div id="star-bg"></div>
+
+  <!-- Instruction Text -->
+  <div class="instruction">
+    <h1 class="text-2xl md:text-4xl tracking-widest uppercase mb-2">Crystal Heart</h1>
+    <p class="text-sm md:text-base animate-pulse opacity-80">Tap the heart to reveal memories</p>
+  </div>
+
+  <!-- 3D Canvas and UI Container -->
+  <div id="heart-container"></div>
+
+  <script>
+    // --- 1. Background Stars Logic ---
+    const starBg = document.getElementById("star-bg");
+    for(let i=0; i<150; i++){
+      const s = document.createElement("div");
+      s.className = "star";
+      const z = Math.random() * 2 + 1;
+      s.style.width = z + "px";
+      s.style.height = z + "px";
+      s.style.left = Math.random() * 100 + "%";
+      s.style.top = Math.random() * 100 + "%";
+      s.style.animationDelay = Math.random() * 5 + "s";
+      starBg.appendChild(s);
+    }
+
+    // --- 2. Three.js Heart Setup ---
+    const container = document.getElementById("heart-container");
+    let scene, camera, renderer, heartMesh;
+
+    function initThree() {
+      const w = container.clientWidth;
+      const h = container.clientHeight;
+      
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(50, w/h, 0.1, 1000);
+      camera.position.z = 25; // Pulled back slightly for full screen
+      
+      renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+      renderer.setSize(w, h);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      container.appendChild(renderer.domElement);
+
+      // Lights
+      scene.add(new THREE.AmbientLight(0x404040, 1.5));
+      const d = new THREE.DirectionalLight(0xffffff, 2);
+      d.position.set(5, 10, 7);
+      scene.add(d);
+      scene.add(new THREE.PointLight(0xa855f7, 2, 50, 1)); // Purple point light
+
+      // Draw Heart Path
+      const heartShape = new THREE.Shape();
+      heartShape.moveTo(5, 5);
+      heartShape.bezierCurveTo(5, 5, 4, 0, 0, 0);
+      heartShape.bezierCurveTo(-6, 0, -6, 7, -6, 7);
+      heartShape.bezierCurveTo(-6, 11, -3, 15.4, 5, 19);
+      heartShape.bezierCurveTo(12, 15.4, 16, 11, 16, 7);
+      heartShape.bezierCurveTo(16, 7, 16, 0, 10, 0);
+      heartShape.bezierCurveTo(7, 0, 5, 5, 5, 5);
+
+      // Extrude to 3D
+      const geo = new THREE.ExtrudeGeometry(heartShape, { depth: 4, bevelEnabled: true, bevelThickness: 1, bevelSize: 1 });
+      geo.center();
+      geo.rotateZ(Math.PI); // Flip upright
+      
+      // Crystal material
+      const material = new THREE.MeshPhysicalMaterial({ 
+        color: 0xffffff, 
+        metalness: 0.2, 
+        roughness: 0.1, 
+        transmission: 0.1, 
+        clearcoat: 1 
+      });
+      
+      heartMesh = new THREE.Mesh(geo, material);
+      heartMesh.scale.set(0.2, 0.2, 0.2);
+      scene.add(heartMesh);
+      
+      animate();
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if(heartMesh) {
+        // Gentle floating animation
+        heartMesh.position.y = Math.sin(Date.now() * 0.002) * 0.8;
+        // Gentle rotation
+        heartMesh.rotation.y = Math.sin(Date.now() * 0.001) * 0.2;
+      }
+      renderer.render(scene, camera);
+    }
+
+    // --- 3. Greeting Card Interaction Logic ---
+    // Modified to use placehold.co images so it works anywhere
+    const cardsData = [
+      { top: "You gave", img: "https://placehold.co/400x300/e9d5ff/6b21a8?text=Memory+1", bottom: "refreshness in my life like.." },
+      { top: "My only", img: "https://placehold.co/400x300/d8b4fe/4c1d95?text=Memory+2", bottom: "is to be with you .." },
+      { top: "our relationship", img: "https://placehold.co/400x300/c084fc/3b0764?text=Memory+3", bottom: "just like magic" },
+      { top: "you are my..", img: "https://placehold.co/400x300/a855f7/ffffff?text=Memory+4", bottom: "Filled with magical moments and laughter." },
+      { top: "Celebrate You", img: "https://placehold.co/400x300/9333ea/ffffff?text=Memory+5", bottom: "You deserve all the happiness in the world." }
+    ];
+
+    let clickCount = 0;
+    let isAnimating = false;
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+
+    function onTouchHeart(e) {
+      if(isAnimating) return;
+      
+      // Handle both mouse and touch events
+      const x = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+      const y = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+
+      // Calculate mouse position in normalized device coordinates (-1 to +1) for both components
+      pointer.x = (x / window.innerWidth) * 2 - 1;
+      pointer.y = -(y / window.innerHeight) * 2 + 1;
+
+      // Raycast to check if heart was clicked
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(scene.children);
+      
+      if(hits.length) {
+        // Prevent default only if we actually hit the heart to avoid blocking other interactions
+        e.preventDefault(); 
+        
+        // Show card on left if clicked left side of heart, right if right side
+        const side = hits[0].point.x < 0 ? "left" : "right";
+        showCard(side);
+      }
+    }
+
+    function showCard(side) {
+      if(clickCount >= cardsData.length) {
+        // Reset if we reach the end so the user can play again
+        clickCount = 0; 
+      }
+      
+      const old = document.querySelector(".greeting-card");
+      if(old) {
+        isAnimating = true;
+        old.classList.add("fade-out-down");
+        setTimeout(() => { 
+          old.remove(); 
+          spawn(side); 
+          isAnimating = false; 
+        }, 500);
+      } else {
+        spawn(side);
+      }
+    }
+
+    function spawn(side) {
+      const d = cardsData[clickCount];
+      const c = document.createElement("div");
+      c.className = `greeting-card ${side}`;
+      c.innerHTML = `
+        <h3>${d.top}</h3>
+        <img src="${d.img}" alt="Memory">
+        <p>${d.bottom}</p>
+      `;
+      container.appendChild(c);
+      clickCount++;
+    }
+
+    // Event Listeners
+    container.addEventListener("mousedown", onTouchHeart);
+    container.addEventListener("touchstart", onTouchHeart, {passive: false});
+
+    window.addEventListener("resize", () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    // Start everything once the window loads
+    window.onload = () => {
+      initThree();
+    };
+  </script>
+
+</body>
+</html>
